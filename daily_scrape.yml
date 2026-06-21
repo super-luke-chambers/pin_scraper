@@ -1,0 +1,54 @@
+name: Daily Pinnacle Scrape
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      - name: Decode rclone config
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONFIG }}" | base64 --decode > ~/.config/rclone/rclone.conf
+
+      - name: Download existing historical corners file
+        run: |
+          rclone copy gdrive:/PinScraper/pinnacle_corners_historical.xlsx . || echo "No historical file yet, will create new one."
+
+      - name: Run scraper
+        run: python pinnacle_scrape_odds_1_web.py
+
+      - name: Write Excel file
+        run: python pinnacle_write_data_2_new_web.py
+
+      - name: Run corner model
+        run: python run_corner_model.py
+
+      - name: Upload to Google Drive
+        run: |
+          rclone copy PinnacleOddsDatabase.db gdrive:/PinScraper/
+          rclone copy pinnacle_odds_data.xlsx gdrive:/PinScraper/
+          rclone copy pinnacle_corners_current.xlsx gdrive:/PinScraper/
+          rclone copy pinnacle_corners_historical.xlsx gdrive:/PinScraper/

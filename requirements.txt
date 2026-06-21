@@ -1,0 +1,6 @@
+selenium
+lxml
+openpyxl
+webdriver-manager
+pandas
+scipy
