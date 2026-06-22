@@ -25,17 +25,48 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Install rclone
-        run: curl https://rclone.org/install.sh | sudo bash
+      - name: Install Google Drive dependencies
+        run: pip install google-api-python-client google-auth
 
-      - name: Decode rclone config
+      - name: Decode service account credentials
         run: |
-          mkdir -p ~/.config/rclone
-          echo "${{ secrets.RCLONE_CONFIG }}" | base64 --decode > ~/.config/rclone/rclone.conf
+          echo "${{ secrets.GDRIVE_SERVICE_ACCOUNT }}" | base64 --decode > service_account.json
 
       - name: Download existing historical corners file
         run: |
-          rclone copy gdrive:/PinScraper/pinnacle_corners_historical.xlsx . || echo "No historical file yet, will create new one."
+          python - <<'EOF'
+          import os, json
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaIoBaseDownload
+          from google.oauth2 import service_account
+
+          FOLDER_ID = os.environ['GDRIVE_FOLDER_ID']
+          creds = service_account.Credentials.from_service_account_file(
+              'service_account.json',
+              scopes=['https://www.googleapis.com/auth/drive']
+          )
+          service = build('drive', 'v3', credentials=creds)
+
+          results = service.files().list(
+              q=f"name='pinnacle_corners_historical.xlsx' and '{FOLDER_ID}' in parents and trashed=false",
+              fields="files(id, name)"
+          ).execute()
+          files = results.get('files', [])
+
+          if files:
+              file_id = files[0]['id']
+              request = service.files().get_media(fileId=file_id)
+              with open('pinnacle_corners_historical.xlsx', 'wb') as f:
+                  downloader = MediaIoBaseDownload(f, request)
+                  done = False
+                  while not done:
+                      _, done = downloader.next_chunk()
+              print("Downloaded historical file.")
+          else:
+              print("No historical file yet, will create new one.")
+          EOF
+        env:
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
 
       - name: Run scraper
         run: python pinnacle_scrape_odds_1_web.py
@@ -48,7 +79,59 @@ jobs:
 
       - name: Upload to Google Drive
         run: |
-          rclone copy PinnacleOddsDatabase.db gdrive:/PinScraper/
-          rclone copy pinnacle_odds_data.xlsx gdrive:/PinScraper/
-          rclone copy pinnacle_corners_current.xlsx gdrive:/PinScraper/
-          rclone copy pinnacle_corners_historical.xlsx gdrive:/PinScraper/
+          python - <<'EOF'
+          import os
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+          from google.oauth2 import service_account
+
+          FOLDER_ID = os.environ['GDRIVE_FOLDER_ID']
+          creds = service_account.Credentials.from_service_account_file(
+              'service_account.json',
+              scopes=['https://www.googleapis.com/auth/drive']
+          )
+          service = build('drive', 'v3', credentials=creds)
+
+          FILES_TO_UPLOAD = [
+              ('PinnacleOddsDatabase.db',             'application/octet-stream'),
+              ('pinnacle_odds_data.xlsx',              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+              ('pinnacle_corners_current.xlsx',        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+              ('pinnacle_corners_historical.xlsx',     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+          ]
+
+          for filename, mimetype in FILES_TO_UPLOAD:
+              if not os.path.exists(filename):
+                  print(f"Skipping {filename} — file not found.")
+                  continue
+
+              # Check if file already exists in Drive (to update instead of duplicate)
+              results = service.files().list(
+                  q=f"name='{filename}' and '{FOLDER_ID}' in parents and trashed=false",
+                  fields="files(id, name)"
+              ).execute()
+              existing = results.get('files', [])
+
+              media = MediaFileUpload(filename, mimetype=mimetype, resumable=True)
+
+              if existing:
+                  # Update existing file
+                  service.files().update(
+                      fileId=existing[0]['id'],
+                      media_body=media
+                  ).execute()
+                  print(f"Updated: {filename}")
+              else:
+                  # Create new file
+                  service.files().create(
+                      body={'name': filename, 'parents': [FOLDER_ID]},
+                      media_body=media,
+                      fields='id'
+                  ).execute()
+                  print(f"Uploaded: {filename}")
+          EOF
+        env:
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+
+      - name: Cleanup credentials
+        if: always()
+        run: rm -f service_account.json
