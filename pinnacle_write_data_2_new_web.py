@@ -75,9 +75,10 @@ class PinnacleWriter(PinnacleScraper):
             
             row_to_write = [parsed_match_data[header_item] for header_item in HEADERS]
             ws.append(row_to_write)
+            
 
-
-        outfile_name = "pinnacle_odds_data.xlsx"
+        os.makedirs("outputs", exist_ok=True)
+        outfile_name = "outputs/pinnacle_odds_data.xlsx"
         wb.save(outfile_name)
         print("Created output file:", outfile_name)
         return
