@@ -45,6 +45,36 @@ jobs:
           mv pinnacle_corners_current.xlsx outputs/ 2>/dev/null || true
           mv pinnacle_corners_historical.xlsx outputs/ 2>/dev/null || true
 
+      - name: Post corners outputs to Slack
+        run: |
+          pip install slack_sdk
+          python - <<'PY'
+          import os
+          from datetime import date, timezone, datetime
+          from slack_sdk import WebClient
+
+          client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
+          channel = os.environ["SLACK_CHANNEL_ID"]
+          files = [
+              "outputs/pinnacle_corners_current.xlsx",
+              "outputs/pinnacle_corners_historical.xlsx",
+          ]
+          uploads = [{"file": f, "title": os.path.basename(f)}
+                     for f in files if os.path.exists(f)]
+          if not uploads:
+              raise SystemExit("No corners output files found to upload")
+          today = datetime.now(timezone.utc).date().isoformat()
+          client.files_upload_v2(
+              channel=channel,
+              file_uploads=uploads,
+              initial_comment=f":soccer: Pinnacle corners outputs — {today}",
+          )
+          print(f"Uploaded {len(uploads)} file(s) to Slack channel {channel}")
+          PY
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
       - name: Commit and push outputs
         run: |
           git config user.name "github-actions[bot]"
