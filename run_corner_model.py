@@ -18,9 +18,9 @@ import os
 import pandas as pd
 from pinn_odds_proc_web import process_corner_odds
 
-RAW_ODDS_FILE = "pinnacle_odds_data.xlsx"
-CURRENT_OUT_FILE = "pinnacle_corners_current.xlsx"
-HISTORICAL_FILE = "pinnacle_corners_historical.xlsx"
+RAW_ODDS_FILE = "outputs/pinnacle_odds_data.xlsx"
+CURRENT_OUT_FILE = "outputs/pinnacle_corners_current.xlsx"
+HISTORICAL_FILE = "outputs/pinnacle_corners_historical.xlsx"
 
 
 def main():
