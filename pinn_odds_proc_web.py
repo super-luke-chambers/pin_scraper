@@ -97,12 +97,11 @@ def fit_corner_delta(line, home_odds, away_odds, base):
 
 
 def process_corner_odds(df):
-    """
-    Takes a raw odds dataframe (same columns as pinnacle_odds_data.xlsx)
-    and returns a dataframe with fitted corner_total and corner_supremacy
-    columns, keeping only rows with usable corner markets.
-    """
     df_odds = df.copy()
+    df_odds = df_odds.dropna(subset=['Asian Corners Line'])
+    
+    if df_odds.empty:
+        return pd.DataFrame(columns=['Date', 'League', 'Home', 'Away', 'corner_total', 'corner_supremacy'])
 
     # Drops rows with no corner odds
     df_odds = df_odds.dropna(subset=['Asian Corners Line'])
