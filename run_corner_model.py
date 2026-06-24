@@ -27,6 +27,10 @@ def main():
     raw_df = pd.read_excel(RAW_ODDS_FILE)
     processed_df = process_corner_odds(raw_df)
 
+    if processed_df.empty:
+        print("No corner odds available in today's data, skipping output.")
+        return
+
     # Save today's matches on their own
     processed_df.to_excel(CURRENT_OUT_FILE, index=False)
     print(f"Wrote {len(processed_df)} rows to {CURRENT_OUT_FILE}")
@@ -35,9 +39,7 @@ def main():
     if os.path.exists(HISTORICAL_FILE):
         historical_df = pd.read_excel(HISTORICAL_FILE)
         combined_df = pd.concat([historical_df, processed_df], ignore_index=True)
-        # Excel round-trips dates as Timestamps, so normalise both sides to the same type
         combined_df['Date'] = pd.to_datetime(combined_df['Date']).dt.date
-        # De-dupe on match identity in case the same fixture was scraped/processed twice
         combined_df = combined_df.drop_duplicates(subset=['Date', 'League', 'Home', 'Away'], keep='last')
     else:
         print(f"No existing {HISTORICAL_FILE} found, creating new one.")
