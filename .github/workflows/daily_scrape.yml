@@ -46,6 +46,7 @@ jobs:
           mv pinnacle_corners_historical.xlsx outputs/ 2>/dev/null || true
 
       - name: Post corners outputs to Slack
+        continue-on-error: true
         run: |
           pip install slack_sdk
           python - <<'PY'
