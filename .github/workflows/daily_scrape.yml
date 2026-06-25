@@ -42,7 +42,6 @@ jobs:
           mkdir -p outputs
           mv PinnacleOddsDatabase.db outputs/ 2>/dev/null || true
           mv pinnacle_odds_data.xlsx outputs/ 2>/dev/null || true
-          mv pinnacle_corners_current.xlsx outputs/ 2>/dev/null || true
           mv pinnacle_corners_historical.xlsx outputs/ 2>/dev/null || true
 
       - name: Post corners outputs to Slack
@@ -51,17 +50,31 @@ jobs:
           pip install slack_sdk
           python - <<'PY'
           import os
-          from datetime import date, timezone, datetime
+          import re
+          import glob
+          from datetime import timezone, datetime
           from slack_sdk import WebClient
 
           client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
           channel = os.environ["SLACK_CHANNEL_ID"]
-          files = [
-              "outputs/pinnacle_corners_current.xlsx",
-              "outputs/pinnacle_corners_historical.xlsx",
-          ]
-          uploads = [{"file": f, "title": os.path.basename(f)}
-                     for f in files if os.path.exists(f)]
+
+          # Pick the most recent dated current file (pinnacle_corners_ddmmyyyy.xlsx)
+          def sort_key(path):
+              m = re.search(r"pinnacle_corners_(\d{2})(\d{2})(\d{4})\.xlsx$", path)
+              if not m:
+                  return ""
+              dd, mm, yyyy = m.groups()
+              return yyyy + mm + dd  # yyyymmdd, lexically sortable
+          current_files = glob.glob("outputs/pinnacle_corners_current/pinnacle_corners_*.xlsx")
+          latest_current = max(current_files, key=sort_key) if current_files else None
+
+          files = []
+          if latest_current:
+              files.append(latest_current)
+          if os.path.exists("outputs/pinnacle_corners_historical.xlsx"):
+              files.append("outputs/pinnacle_corners_historical.xlsx")
+
+          uploads = [{"file": f, "title": os.path.basename(f)} for f in files]
           if not uploads:
               raise SystemExit("No corners output files found to upload")
           today = datetime.now(timezone.utc).date().isoformat()
