@@ -71,8 +71,6 @@ jobs:
           files = []
           if latest_current:
               files.append(latest_current)
-          if os.path.exists("outputs/pinnacle_corners_historical.xlsx"):
-              files.append("outputs/pinnacle_corners_historical.xlsx")
 
           uploads = [{"file": f, "title": os.path.basename(f)} for f in files]
           if not uploads:
