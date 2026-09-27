@@ -68,13 +68,11 @@ jobs:
           current_files = glob.glob("outputs/pinnacle_corners_current/pinnacle_corners_*.xlsx")
           latest_current = max(current_files, key=sort_key) if current_files else None
 
-          files = []
-          if latest_current:
-              files.append(latest_current)
+          if not latest_current:
+              print("No current corners file for today, skipping Slack post.")
+              raise SystemExit(0)
 
-          uploads = [{"file": f, "title": os.path.basename(f)} for f in files]
-          if not uploads:
-              raise SystemExit("No corners output files found to upload")
+          uploads = [{"file": latest_current, "title": os.path.basename(latest_current)}]
           today = datetime.now(timezone.utc).date().isoformat()
           client.files_upload_v2(
               channel=channel,
