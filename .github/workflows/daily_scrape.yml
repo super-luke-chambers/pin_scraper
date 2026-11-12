@@ -2,7 +2,7 @@ name: Daily Pinnacle Scrape
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '0 7,10,13,16 * * *'
   workflow_dispatch:
 
 jobs:
@@ -43,47 +43,6 @@ jobs:
           mv PinnacleOddsDatabase.db outputs/ 2>/dev/null || true
           mv pinnacle_odds_data.xlsx outputs/ 2>/dev/null || true
           mv pinnacle_corners_historical.xlsx outputs/ 2>/dev/null || true
-
-      - name: Post corners outputs to Slack
-        continue-on-error: true
-        run: |
-          pip install slack_sdk
-          python - <<'PY'
-          import os
-          import re
-          import glob
-          from datetime import timezone, datetime
-          from slack_sdk import WebClient
-
-          client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
-          channel = os.environ["SLACK_CHANNEL_ID"]
-
-          # Pick the most recent dated current file (pinnacle_corners_ddmmyyyy.xlsx)
-          def sort_key(path):
-              m = re.search(r"pinnacle_corners_(\d{2})(\d{2})(\d{4})\.xlsx$", path)
-              if not m:
-                  return ""
-              dd, mm, yyyy = m.groups()
-              return yyyy + mm + dd  # yyyymmdd, lexically sortable
-          current_files = glob.glob("outputs/pinnacle_corners_current/pinnacle_corners_*.xlsx")
-          latest_current = max(current_files, key=sort_key) if current_files else None
-
-          if not latest_current:
-              print("No current corners file for today, skipping Slack post.")
-              raise SystemExit(0)
-
-          uploads = [{"file": latest_current, "title": os.path.basename(latest_current)}]
-          today = datetime.now(timezone.utc).date().isoformat()
-          client.files_upload_v2(
-              channel=channel,
-              file_uploads=uploads,
-              initial_comment=f":soccer: Pinnacle corners outputs — {today}",
-          )
-          print(f"Uploaded {len(uploads)} file(s) to Slack channel {channel}")
-          PY
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
 
       - name: Commit and push outputs
         run: |
