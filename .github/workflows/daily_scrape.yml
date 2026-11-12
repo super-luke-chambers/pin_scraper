@@ -44,6 +44,16 @@ jobs:
           mv pinnacle_odds_data.xlsx outputs/ 2>/dev/null || true
           mv pinnacle_corners_historical.xlsx outputs/ 2>/dev/null || true
 
+      - name: Corner price alert (Superbet vs Pinnacle)
+        continue-on-error: true
+        run: |
+          pip install slack_sdk
+          mkdir -p outputs
+          CORNERS_ALERT_STATE=outputs/corners_alert_state.json CORNERS_ALERT_LOG=corners_alert.log \
+            python pinnacle_vs_superbet_corners.py --pin-file outputs/pinnacle_odds_data.xlsx
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
       - name: Commit and push outputs
         run: |
           git config user.name "github-actions[bot]"
